@@ -1,0 +1,29 @@
+{
+  "name": "@hyprcode/monorepo",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.2.1",
+  "workspaces": {
+    "packages": [
+      "apps/*",
+      "packages/*"
+    ]
+  },
+  "scripts": {
+    "dev": "turbo run dev --parallel --filter=@hyprcode/server --filter=@hyprcode/web",
+    "dev:web": "turbo run dev --filter=@hyprcode/web",
+    "dev:server": "turbo run dev --filter=@hyprcode/server",
+    "dev:desktop": "turbo run dev --filter=@hyprcode/desktop",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "start:server": "bun run --cwd apps/server src/index.ts",
+    "start:web": "bun run --cwd apps/web dev"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.1",
+    "@types/node": "^24.0.0",
+    "turbo": "^2.5.6",
+    "typescript": "^5.7.3"
+  }
+}

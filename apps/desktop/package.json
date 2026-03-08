@@ -1,0 +1,15 @@
+{
+  "name": "@hyprcode/desktop",
+  "private": true,
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "bun run build && bunx electron .",
+    "build": "bun build src/main.ts --outfile dist-electron/main.js --target node && bun build src/preload.ts --outfile dist-electron/preload.js --target node",
+    "typecheck": "bunx tsc --noEmit -p tsconfig.json",
+    "test": "bun test ./src"
+  },
+  "dependencies": {
+    "electron": "^35.1.4"
+  }
+}

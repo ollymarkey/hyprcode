@@ -1,0 +1,11 @@
+node_modules
+.turbo
+dist
+dist-electron
+.vite
+.DS_Store
+.env
+.env.local
+coverage
+apps/web/src/routeTree.gen.ts
+*.log
