@@ -14,6 +14,8 @@ The current focus is frontend-only. React and Vite will be used first. Backend s
 - Use the TanStack stack already present in the app, including TanStack Router, TanStack Query, and TanStack Store.
 - Prefer TanStack Store for app-level state management instead of introducing a separate state library for the same responsibilities.
 - Use built-in shadcn UI components wherever possible before creating custom primitives.
+- Use `@lexical/react` as the default editor foundation for chat windows and other rich text interaction surfaces.
+- Use `@chenglou/pretext` for chat text measurement and layout work where accurate sizing is needed without relying on DOM reflow.
 - Avoid `useEffect` wherever possible. Prefer declarative data flow, event-driven updates, derived state, and framework-supported patterns first.
 
 ## Planning Workflow
@@ -66,12 +68,15 @@ Implementation priority:
 2. Terminal second
 3. Editor third
 
+Chat is the default window experience. New work should assume chat windows are the primary polished surface, built with Lexical for input/composer behavior and Pretext for measured text sizing.
+
 ## UX Direction
 
 - The interface should feel keyboard-driven and fast.
 - Layout behavior should stay predictable and structured.
 - Workspaces should make multi-project development feel natural.
 - The product should feel more like a coding window manager than a traditional IDE.
+- All UI should be as minimal and sleek as possible. Prefer restraint, strong spacing, and clean surfaces over decorative complexity.
 
 ## Frontend Priorities
 
@@ -103,6 +108,8 @@ Agents working on the frontend should prioritize:
 - Frontend components should be built with the later Electron migration in mind.
 - Persistent layout state and transient interaction state should remain separate.
 - Layout mutations should be command-driven so drag, resize, keyboard shortcuts, and future persistence all use the same rules.
+- Chat document state should remain separate from workspace layout state.
+- Do not store Lexical editor instances in TanStack Store. Only store serializable chat data such as message content, drafts, and editor snapshots.
 
 ## Definition Of Success For The First Frontend Phase
 

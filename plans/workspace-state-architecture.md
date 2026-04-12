@@ -31,35 +31,35 @@ This is the canonical, serializable state that should eventually be saved and re
 Suggested shape:
 
 ```ts
-type WindowType = 'chat' | 'terminal' | 'editor'
+type WindowType = "chat" | "terminal" | "editor";
 
 type TileRect = {
-  x: 0 | 1
-  y: 0 | 1
-  w: 1 | 2
-  h: 1 | 2
-}
+  x: 0 | 1;
+  y: 0 | 1;
+  w: 1 | 2;
+  h: 1 | 2;
+};
 
 type WorkspaceWindow = {
-  id: string
-  type: WindowType
-  repoId: string
-  tile: TileRect
-  isFullscreen: boolean
-  previousTile?: TileRect
-}
+  id: string;
+  type: WindowType;
+  repoId: string;
+  tile: TileRect;
+  isFullscreen: boolean;
+  previousTile?: TileRect;
+};
 
 type Workspace = {
-  id: string
-  windowIds: string[]
-  focusedWindowId?: string
-}
+  id: string;
+  windowIds: string[];
+  focusedWindowId?: string;
+};
 
 type WorkspaceState = {
-  activeWorkspaceId: string
-  workspaces: Record<string, Workspace>
-  windows: Record<string, WorkspaceWindow>
-}
+  activeWorkspaceId: string;
+  workspaces: Record<string, Workspace>;
+  windows: Record<string, WorkspaceWindow>;
+};
 ```
 
 ### 2. Ephemeral Interaction State

@@ -1,0 +1,144 @@
+import { Store } from "@tanstack/react-store";
+import type { ChatMessage, ChatState, ChatWindowState } from "./types";
+
+function createMessageId(): string {
+  return globalThis.crypto.randomUUID();
+}
+
+function createAssistantWelcomeMessage(title: string, repoId: string): ChatMessage {
+  return {
+    id: createMessageId(),
+    role: "assistant",
+    content: `Ready to work in ${title}. Repository context is ${repoId}.`,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+export function createChatWindowState(
+  windowId: string,
+  title: string,
+  repoId: string,
+): ChatWindowState {
+  return {
+    windowId,
+    title,
+    repoId,
+    messages: [createAssistantWelcomeMessage(title, repoId)],
+    draftPlainText: "",
+  };
+}
+
+export const chatStore = new Store<ChatState>({});
+
+export const chatCommands = {
+  ensureWindow(windowId: string, title: string, repoId: string) {
+    chatStore.setState((state) => {
+      if (state[windowId]) {
+        return state;
+      }
+
+      return {
+        ...state,
+        [windowId]: createChatWindowState(windowId, title, repoId),
+      };
+    });
+  },
+
+  setDraft(
+    windowId: string,
+    title: string,
+    repoId: string,
+    draftPlainText: string,
+    draftEditorState?: string,
+  ) {
+    chatStore.setState((state) => {
+      const currentWindow = state[windowId] ?? createChatWindowState(windowId, title, repoId);
+
+      return {
+        ...state,
+        [windowId]: {
+          ...currentWindow,
+          title,
+          repoId,
+          draftPlainText,
+          draftEditorState,
+        },
+      };
+    });
+  },
+
+  sendMessage(
+    windowId: string,
+    title: string,
+    repoId: string,
+    content: string,
+    serializedEditorState?: string,
+  ) {
+    const normalizedContent = content.trim();
+
+    if (!normalizedContent) {
+      return false;
+    }
+
+    chatStore.setState((state) => {
+      const currentWindow = state[windowId] ?? createChatWindowState(windowId, title, repoId);
+
+      return {
+        ...state,
+        [windowId]: {
+          ...currentWindow,
+          title,
+          repoId,
+          messages: [
+            ...currentWindow.messages,
+            {
+              id: createMessageId(),
+              role: "user",
+              content: normalizedContent,
+              createdAt: new Date().toISOString(),
+              serializedEditorState,
+            },
+          ],
+          draftPlainText: "",
+          draftEditorState: undefined,
+        },
+      };
+    });
+
+    return true;
+  },
+
+  removeWindow(windowId: string) {
+    chatStore.setState((state) => {
+      if (!state[windowId]) {
+        return state;
+      }
+
+      const nextState = { ...state };
+      delete nextState[windowId];
+      return nextState;
+    });
+  },
+
+  renameWindow(windowId: string, newTitle: string) {
+    chatStore.setState((state) => {
+      const window = state[windowId];
+
+      if (!window) {
+        return state;
+      }
+
+      return {
+        ...state,
+        [windowId]: {
+          ...window,
+          title: newTitle,
+        },
+      };
+    });
+  },
+
+  reset() {
+    chatStore.setState(() => ({}));
+  },
+};
