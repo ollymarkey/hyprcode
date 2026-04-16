@@ -1,0 +1,12 @@
+{
+  "extends": "@hyprcode/typescript-config/react-app.json",
+  "include": ["**/*.ts", "**/*.tsx"],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "#/*": ["./src/*"],
+      "@/*": ["./src/*"]
+    },
+    "types": ["vite/client"]
+  }
+}
