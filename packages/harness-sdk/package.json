@@ -24,6 +24,10 @@
     "fmt": "oxfmt src README.md package.json tsconfig.json tsconfig.build.json",
     "fmt:check": "oxfmt --check src README.md package.json tsconfig.json tsconfig.build.json"
   },
+  "dependencies": {
+    "codex-sdk": "file:../codex-sdk",
+    "opencode-sdk": "file:../opencode-sdk"
+  },
   "devDependencies": {
     "@types/node": "^24.8.1",
     "typescript": "^5.9.3"

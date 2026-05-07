@@ -52,3 +52,21 @@ For example, `opencode` uses a client/server architecture. Its TUI is just one c
 ## Status
 
 This package currently exports the shared types and contracts that future adapters will implement.
+
+The first wired adapter is `opencode`, backed by `opencode-sdk`.
+
+## Current Usage
+
+```ts
+import { createOpencodeAdapter } from "harness-sdk";
+
+const adapter = createOpencodeAdapter();
+
+const result = await adapter.run?.({
+  prompt: "summarize the current repository",
+});
+
+const models = await adapter.listModels?.();
+```
+
+`startServer()` currently manages the `opencode serve` process directly, while command-oriented operations delegate to `opencode-sdk`.
