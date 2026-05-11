@@ -21,6 +21,8 @@ export interface HarnessModelInfo {
   name?: string;
 }
 
+export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+
 export interface HarnessServerTarget {
   url: string;
 }
@@ -39,6 +41,7 @@ export interface HarnessRunRequest {
   prompt: string;
   cwd?: string;
   model?: string;
+  reasoningEffort?: ReasoningEffort;
   agent?: string;
   sessionId?: string;
   continueLastSession?: boolean;

@@ -1,0 +1,12 @@
+{
+  "extends": "@hyprcode/typescript-config/base.json",
+  "compilerOptions": {
+    "types": ["bun"],
+    "lib": ["ESNext"],
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": ["src"]
+}

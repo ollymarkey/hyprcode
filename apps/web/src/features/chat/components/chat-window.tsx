@@ -16,27 +16,110 @@ import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
 import { useStore } from "@tanstack/react-store";
 import { ArrowUp, MessageSquareDashed } from "lucide-react";
 import { Button } from "#/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "#/components/ui/select";
 import { cn } from "#/lib/utils";
+import { runAgentPrompt, subscribeToAgentStream } from "../agent-client";
 import { measureChatComposerHeight } from "../lib/pretext-measure";
+import { loadAgents, type HarnessAgentInfo } from "#/features/workspaces/session-persistence";
 import { chatCommands, chatStore, createChatWindowState } from "../store";
+import type { AgentProvider, ReasoningEffort } from "../types";
 
 type ChatWindowProps = {
   windowId: string;
   title: string;
   repoId: string;
+  cwd?: string;
 };
 
 const lexicalTheme = {
   paragraph: "mb-0",
 };
 
-export function ChatWindow({ windowId, title, repoId }: ChatWindowProps) {
+const fallbackAgents: HarnessAgentInfo[] = [
+  { id: "codex", name: "codex" },
+  { id: "opencode", name: "opencode" },
+];
+
+const reasoningOptions: ReasoningEffort[] = ["none", "minimal", "low", "medium", "high", "xhigh"];
+
+export function ChatWindow({ windowId, title, repoId, cwd }: ChatWindowProps) {
   const chatWindow = useStore(
     chatStore,
     (state) => state[windowId] ?? createChatWindowState(windowId, title, repoId),
   );
   const composerRef = useRef<HTMLDivElement | null>(null);
   const [composerWidth, setComposerWidth] = useState(0);
+  const [agents, setAgents] = useState<HarnessAgentInfo[]>(fallbackAgents);
+
+  useEffect(() => {
+    return subscribeToAgentStream(windowId, {
+      onRunStarted(message) {
+        chatCommands.startAssistantMessage(windowId, title, repoId, message.assistantMessageId);
+      },
+      onStreamEvent(message) {
+        const event = message.event;
+
+        if (event.type === "text") {
+          chatCommands.appendAssistantMessage(
+            windowId,
+            title,
+            repoId,
+            message.assistantMessageId,
+            event.text,
+          );
+          return;
+        }
+
+        if (event.type === "message" && event.role === "assistant") {
+          chatCommands.appendAssistantMessage(
+            windowId,
+            title,
+            repoId,
+            message.assistantMessageId,
+            event.content,
+          );
+        }
+      },
+      onRunCompleted(message) {
+        chatCommands.finishAssistantMessage(windowId, message.assistantMessageId);
+      },
+      onRunFailed(message) {
+        chatCommands.failAssistantMessage(
+          windowId,
+          title,
+          repoId,
+          message.assistantMessageId ?? crypto.randomUUID(),
+          message.message,
+        );
+      },
+    });
+  }, [repoId, title, windowId]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    void loadAgents()
+      .then((nextAgents) => {
+        if (!isCancelled && nextAgents.length > 0) {
+          setAgents(nextAgents);
+        }
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setAgents(fallbackAgents);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const composerElement = composerRef.current;
@@ -72,6 +155,38 @@ export function ChatWindow({ windowId, title, repoId }: ChatWindowProps) {
     }),
     [chatWindow.draftEditorState, windowId],
   );
+
+  function submitPrompt(editor: LexicalEditor, editorState: EditorState) {
+    const prompt = readPlainText(editorState);
+    const didSend = chatCommands.sendMessage(
+      windowId,
+      title,
+      repoId,
+      prompt,
+      JSON.stringify(editorState.toJSON()),
+    );
+
+    if (!didSend) {
+      return;
+    }
+
+    runAgentPrompt({
+      windowId,
+      title,
+      repoId,
+      prompt: prompt.trim(),
+      cwd: cwd ?? getPathLikeCwd(repoId),
+      agent: chatWindow.settings.harness,
+      model: chatWindow.settings.model,
+      reasoningEffort: chatWindow.settings.reasoningEffort,
+      sessionId: chatWindow.settings.harnessSessionId,
+    });
+
+    editor.update(() => {
+      $getRoot().clear();
+    });
+    chatCommands.setDraft(windowId, title, repoId, "", undefined);
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -142,54 +257,94 @@ export function ChatWindow({ windowId, title, repoId }: ChatWindowProps) {
               />
               <SubmitOnEnterPlugin
                 onSubmit={(editor, editorState) => {
-                  const didSend = chatCommands.sendMessage(
-                    windowId,
-                    title,
-                    repoId,
-                    readPlainText(editorState),
-                    JSON.stringify(editorState.toJSON()),
-                  );
-
-                  if (!didSend) {
-                    return;
-                  }
-
-                  editor.update(() => {
-                    $getRoot().clear();
-                  });
-                  chatCommands.setDraft(windowId, title, repoId, "", undefined);
+                  submitPrompt(editor, editorState);
                 }}
               />
             </div>
 
-            <div className="mt-2 flex items-center justify-between gap-3 px-1 pb-1">
-              <p className="text-[11px] text-muted-foreground">
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1 pb-1">
+              <ChatRuntimeControls windowId={windowId} agents={agents} />
+              <p className="min-w-32 flex-1 text-center text-[11px] text-muted-foreground">
                 Enter to send. Shift+Enter for a new line.
               </p>
               <SendButton
                 onSend={(editor, editorState) => {
-                  const didSend = chatCommands.sendMessage(
-                    windowId,
-                    title,
-                    repoId,
-                    readPlainText(editorState),
-                    JSON.stringify(editorState.toJSON()),
-                  );
-
-                  if (!didSend) {
-                    return;
-                  }
-
-                  editor.update(() => {
-                    $getRoot().clear();
-                  });
-                  chatCommands.setDraft(windowId, title, repoId, "", undefined);
+                  submitPrompt(editor, editorState);
                 }}
               />
             </div>
           </div>
         </LexicalComposer>
       </div>
+    </div>
+  );
+}
+
+function getPathLikeCwd(repoId: string): string | undefined {
+  const trimmed = repoId.trim();
+
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (trimmed.startsWith("/") || trimmed.startsWith("~") || /^[A-Za-z]:[\\/]/.test(trimmed)) {
+    return trimmed;
+  }
+
+  return undefined;
+}
+
+function ChatRuntimeControls({
+  windowId,
+  agents,
+}: {
+  windowId: string;
+  agents: HarnessAgentInfo[];
+}) {
+  const settings = useStore(
+    chatStore,
+    (state) =>
+      state[windowId]?.settings ?? {
+        harness: "codex" as AgentProvider,
+        reasoningEffort: "medium" as ReasoningEffort,
+      },
+  );
+
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <Select
+        value={settings.harness}
+        onValueChange={(value) => chatCommands.setHarness(windowId, value as AgentProvider)}
+      >
+        <SelectTrigger size="sm" className="h-7 max-w-28 border-border bg-background px-2 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {agents.map((agent) => (
+            <SelectItem key={agent.id} value={agent.id}>
+              {agent.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={settings.reasoningEffort}
+        onValueChange={(value) =>
+          chatCommands.setReasoningEffort(windowId, value as ReasoningEffort)
+        }
+      >
+        <SelectTrigger size="sm" className="h-7 max-w-28 border-border bg-background px-2 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {reasoningOptions.map((reasoning) => (
+            <SelectItem key={reasoning} value={reasoning}>
+              {reasoning}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

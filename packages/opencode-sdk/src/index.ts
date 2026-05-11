@@ -73,8 +73,10 @@ const execute = (subcommand: string[], options: CommandOptions = {}): Promise<Co
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
     let spawnError: Error | null = null;
+    const { cwd, ...cliOptions } = options;
 
-    const child = spawn(BINARY, [...subcommand, ...toArgs(options)], {
+    const child = spawn(BINARY, [...subcommand, ...toArgs(cliOptions)], {
+      cwd: typeof cwd === "string" ? cwd : undefined,
       windowsHide: true,
     });
 

@@ -1,0 +1,24 @@
+{
+  "name": "@hyprcode/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "build": "bun build ./src/index.ts --outdir ./dist --format esm --target bun",
+    "check-types": "tsc --noEmit",
+    "test": "bun test",
+    "lint": "oxlint src",
+    "fmt": "oxfmt src package.json tsconfig.json",
+    "fmt:check": "oxfmt --check src package.json tsconfig.json"
+  },
+  "dependencies": {
+    "effect": "^3.21.2",
+    "harness-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@hyprcode/typescript-config": "workspace:*",
+    "@types/bun": "latest",
+    "typescript": "^5.7.2"
+  }
+}

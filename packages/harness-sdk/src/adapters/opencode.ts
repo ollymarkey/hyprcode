@@ -49,6 +49,7 @@ const parseAgentLines = (output: string): HarnessAgentInfo[] =>
 
 const buildRunOptions = (request: HarnessRunRequest) => ({
   _: [request.prompt],
+  cwd: request.cwd,
   file: request.files,
   model: request.model,
   agent: request.agent,

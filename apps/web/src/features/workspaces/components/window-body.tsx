@@ -5,7 +5,14 @@ import type { WorkspaceWindow } from "../types";
 export function WindowBody({ window }: { window: WorkspaceWindow }) {
   switch (window.type) {
     case "chat":
-      return <ChatWindow windowId={window.id} title={window.title} repoId={window.repoId} />;
+      return (
+        <ChatWindow
+          windowId={window.id}
+          title={window.title}
+          repoId={window.repoId}
+          cwd={window.cwd}
+        />
+      );
     case "terminal":
       return <WindowPlaceholder label="Terminal" description="Terminal windows land after chat." />;
     case "editor":

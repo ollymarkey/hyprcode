@@ -1,5 +1,11 @@
 import { Store } from "@tanstack/react-store";
-import { chatCommands } from "#/features/chat/store";
+import { chatCommands, chatStore, defaultChatRuntimeSettings } from "#/features/chat/store";
+import type { ChatMessage } from "#/features/chat/types";
+import {
+  configureWorkspaceSessionPersistence,
+  scheduleWorkspaceSessionPersist,
+  type WorkspaceSessionSnapshot,
+} from "./session-persistence";
 import {
   cloneTile,
   getTileRect,
@@ -29,12 +35,14 @@ function createWindow(
   type: WindowType,
   repoId: string,
   tile: TileRect,
+  cwd?: string,
 ): WorkspaceWindow {
   return {
     id,
     title,
     type,
     repoId,
+    cwd,
     tile: cloneTile(tile),
     isFullscreen: false,
   };
@@ -50,70 +58,26 @@ function createWorkspace(id: string, name: string, windowIds: string[]): Workspa
 }
 
 export function createInitialWorkspaceState(): WorkspaceState {
-  const workspaceOneId = "workspace-1";
-  const workspaceTwoId = "workspace-2";
+  const workspaceId = "workspace-1";
+  const windowId = "window-1";
 
   const windows: Record<string, WorkspaceWindow> = {
-    "window-1": createWindow(
-      "window-1",
-      "Planning Copilot",
+    [windowId]: createWindow(
+      windowId,
+      "Chat 1",
       "chat",
-      "hyprcode/frontend",
-      getTileRect("left-half"),
-    ),
-    "window-2": createWindow(
-      "window-2",
-      "Prompt Drafts",
-      "chat",
-      "hyprcode/frontend",
-      getTileRect("top-right"),
-    ),
-    "window-3": createWindow(
-      "window-3",
-      "Review Notes",
-      "chat",
-      "design-system",
-      getTileRect("bottom-right"),
-    ),
-    "window-5": createWindow(
-      "window-5",
-      "Workspace Chat",
-      "chat",
-      "marketing-site",
-      getTileRect("left-half"),
-    ),
-    "window-6": createWindow(
-      "window-6",
-      "Spec Review",
-      "chat",
-      "marketing-site",
-      getTileRect("top-right"),
-    ),
-    "window-7": createWindow(
-      "window-7",
-      "API Questions",
-      "chat",
-      "api-docs",
-      getTileRect("bottom-right"),
+      `chat/${workspaceId}`,
+      getTileRect("full"),
     ),
   };
 
   const workspaces = {
-    [workspaceOneId]: createWorkspace(workspaceOneId, "Workspace 1", [
-      "window-1",
-      "window-2",
-      "window-3",
-    ]),
-    [workspaceTwoId]: createWorkspace(workspaceTwoId, "Workspace 2", [
-      "window-5",
-      "window-6",
-      "window-7",
-    ]),
+    [workspaceId]: createWorkspace(workspaceId, "Workspace 1", [windowId]),
   };
 
   return {
-    activeWorkspaceId: workspaceOneId,
-    workspaceOrder: [workspaceOneId, workspaceTwoId],
+    activeWorkspaceId: workspaceId,
+    workspaceOrder: [workspaceId],
     workspaces,
     windows,
   };
@@ -126,6 +90,8 @@ for (const window of Object.values(workspaceStore.state.windows)) {
     chatCommands.ensureWindow(window.id, window.title, window.repoId);
   }
 }
+
+configureWorkspaceSessionPersistence(createWorkspaceSessionSnapshot);
 
 export const workspaceInteractionStore = new Store<WorkspaceInteractionState>(
   initialInteractionState,
@@ -157,6 +123,81 @@ function updateStoredWindowTile(window: WorkspaceWindow, tile: TileRect): Worksp
     ...window,
     tile: cloneTile(tile),
   };
+}
+
+function createWorkspaceSessionSnapshot(): WorkspaceSessionSnapshot {
+  const chatSettingsByWindowId = Object.fromEntries(
+    Object.values(workspaceStore.state.windows)
+      .filter((window) => window.type === "chat")
+      .map((window) => [
+        window.id,
+        chatStore.state[window.id]?.settings ?? defaultChatRuntimeSettings,
+      ]),
+  );
+
+  return {
+    version: 1,
+    workspaceState: workspaceStore.state,
+    chatSettingsByWindowId,
+  };
+}
+
+function initializeChatWindows(
+  state: WorkspaceState,
+  snapshot?: WorkspaceSessionSnapshot | null,
+  messagesByWindowId: Record<string, ChatMessage[]> = {},
+) {
+  chatCommands.reset();
+
+  for (const window of Object.values(state.windows)) {
+    if (window.type === "chat") {
+      chatCommands.ensureWindow(
+        window.id,
+        window.title,
+        window.repoId,
+        snapshot?.chatSettingsByWindowId[window.id],
+        messagesByWindowId[window.id],
+      );
+    }
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isWorkspaceState(value: unknown): value is WorkspaceState {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if (
+    typeof value.activeWorkspaceId === "string" &&
+    Array.isArray(value.workspaceOrder) &&
+    isRecord(value.workspaces) &&
+    isRecord(value.windows)
+  ) {
+    const workspace = value.workspaces[value.activeWorkspaceId];
+
+    return isRecord(workspace) && Array.isArray(workspace.windowIds);
+  }
+
+  return false;
+}
+
+export function hydrateWorkspaceSession(
+  snapshot: WorkspaceSessionSnapshot | null,
+  messagesByWindowId: Record<string, ChatMessage[]> = {},
+): { didUseFallback: boolean } {
+  const workspaceState = isWorkspaceState(snapshot?.workspaceState)
+    ? snapshot.workspaceState
+    : createInitialWorkspaceState();
+
+  workspaceStore.setState(() => workspaceState);
+  workspaceInteractionCommands.clear();
+  initializeChatWindows(workspaceState, snapshot, messagesByWindowId);
+
+  return { didUseFallback: !snapshot };
 }
 
 function moveWindowToRect(
@@ -225,6 +266,7 @@ export const workspaceCommands = {
     }));
 
     chatCommands.ensureWindow(chatWindow.id, chatWindow.title, chatWindow.repoId);
+    scheduleWorkspaceSessionPersist();
   },
 
   setActiveWorkspace(workspaceId: string) {
@@ -238,6 +280,8 @@ export const workspaceCommands = {
         activeWorkspaceId: workspaceId,
       };
     });
+
+    scheduleWorkspaceSessionPersist();
   },
 
   cycleWorkspace(direction: 1 | -1) {
@@ -255,6 +299,8 @@ export const workspaceCommands = {
         activeWorkspaceId: state.workspaceOrder[nextIndex],
       };
     });
+
+    scheduleWorkspaceSessionPersist();
   },
 
   spawnWindow(type: WindowType, repoId?: string) {
@@ -300,6 +346,8 @@ export const workspaceCommands = {
     if (spawnedWindow?.type === "chat") {
       chatCommands.ensureWindow(spawnedWindow.id, spawnedWindow.title, spawnedWindow.repoId);
     }
+
+    scheduleWorkspaceSessionPersist();
   },
 
   closeWindow(workspaceId: string, windowId: string) {
@@ -342,6 +390,8 @@ export const workspaceCommands = {
     if (closingWindow?.type === "chat") {
       chatCommands.removeWindow(windowId);
     }
+
+    scheduleWorkspaceSessionPersist();
   },
 
   focusWindow(workspaceId: string, windowId: string) {
@@ -363,12 +413,15 @@ export const workspaceCommands = {
         },
       };
     });
+
+    scheduleWorkspaceSessionPersist();
   },
 
   moveWindowToTile(workspaceId: string, windowId: string, preset: TilePreset) {
     workspaceStore.setState((state) =>
       moveWindowToRect(state, workspaceId, windowId, getTileRect(preset)),
     );
+    scheduleWorkspaceSessionPersist();
   },
 
   swapWindows(workspaceId: string, sourceWindowId: string, targetWindowId: string) {
@@ -397,12 +450,15 @@ export const workspaceCommands = {
         },
       };
     });
+
+    scheduleWorkspaceSessionPersist();
   },
 
   resizeWindow(workspaceId: string, windowId: string, preset: TilePreset) {
     workspaceStore.setState((state) =>
       moveWindowToRect(state, workspaceId, windowId, getTileRect(preset)),
     );
+    scheduleWorkspaceSessionPersist();
   },
 
   toggleWindowFullscreen(workspaceId: string, windowId: string) {
@@ -441,6 +497,8 @@ export const workspaceCommands = {
         },
       };
     });
+
+    scheduleWorkspaceSessionPersist();
   },
 
   renameWindow(windowId: string, newTitle: string) {
@@ -468,6 +526,38 @@ export const workspaceCommands = {
     if (window?.type === "chat") {
       chatCommands.renameWindow(windowId, newTitle);
     }
+
+    scheduleWorkspaceSessionPersist();
+  },
+
+  setWindowRepo(windowId: string, repoId: string) {
+    workspaceStore.setState((state) => {
+      const window = state.windows[windowId];
+
+      if (!window) {
+        return state;
+      }
+
+      return {
+        ...state,
+        windows: {
+          ...state.windows,
+          [windowId]: {
+            ...window,
+            repoId,
+            cwd: repoId,
+          },
+        },
+      };
+    });
+
+    const window = workspaceStore.state.windows[windowId];
+    if (window?.type === "chat") {
+      chatCommands.setRepoContext(windowId, repoId);
+      chatCommands.setHarnessSessionId(windowId, undefined);
+    }
+
+    scheduleWorkspaceSessionPersist();
   },
 };
 

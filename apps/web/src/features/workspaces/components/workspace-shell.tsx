@@ -10,13 +10,28 @@ import React, {
 import { useStore } from "@tanstack/react-store";
 import { Expand, MessageSquare, Minimize2, Monitor, Plus, Search, Terminal, X } from "lucide-react";
 import { Button } from "#/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "#/components/ui/dialog";
 import { Input } from "#/components/ui/input";
 import { cn } from "#/lib/utils";
 import { CommandPalette } from "./command-palette";
 import { WindowBody } from "./window-body";
 import { getWindowDisplayTile, getWindowStoredTile } from "../layout";
+import {
+  loadChatMessagesByWindowId,
+  loadLatestWorkspaceSession,
+  scheduleWorkspaceSessionPersist,
+} from "../session-persistence";
 import { matchWorkspaceShortcut } from "../shortcuts";
 import {
+  createInitialWorkspaceState,
+  hydrateWorkspaceSession,
   workspaceCommands,
   workspaceInteractionCommands,
   workspaceInteractionStore,
@@ -25,6 +40,8 @@ import {
 import type { TileRect, WindowType, Workspace, WorkspaceWindow } from "../types";
 
 export default function WorkspaceShell() {
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [hydrationError, setHydrationError] = useState<string | undefined>();
   const [closingWindowIds, setClosingWindowIds] = useState<string[]>([]);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [chatSearchQuery, setChatSearchQuery] = useState("");
@@ -66,6 +83,40 @@ export default function WorkspaceShell() {
     : undefined;
   const fullscreenWindow = windows.find((window) => window.isFullscreen);
   const canAddWindow = activeWorkspace.windowIds.length < 4;
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function hydrate() {
+      try {
+        const snapshot = await loadLatestWorkspaceSession();
+        const stateForMessages = snapshot?.workspaceState ?? createInitialWorkspaceState();
+        const chatWindowIds = Object.values(stateForMessages.windows)
+          .filter((window) => window.type === "chat")
+          .map((window) => window.id);
+        const messagesByWindowId = await loadChatMessagesByWindowId(chatWindowIds);
+        const { didUseFallback } = hydrateWorkspaceSession(snapshot, messagesByWindowId);
+
+        if (didUseFallback) {
+          scheduleWorkspaceSessionPersist();
+        }
+      } catch (error) {
+        hydrateWorkspaceSession(null);
+        scheduleWorkspaceSessionPersist();
+        setHydrationError(error instanceof Error ? error.message : String(error));
+      } finally {
+        if (!isCancelled) {
+          setIsHydrated(true);
+        }
+      }
+    }
+
+    void hydrate();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   // Sync drag preview position when ref becomes available
   useEffect(() => {
@@ -314,6 +365,14 @@ export default function WorkspaceShell() {
     window.addEventListener("pointercancel", handlePointerCancel);
   }
 
+  if (!isHydrated) {
+    return (
+      <main className="flex h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+        Loading last session...
+      </main>
+    );
+  }
+
   return (
     <main className="h-screen overflow-hidden" onKeyDownCapture={handleKeyDown} tabIndex={0}>
       <section className="flex h-full min-h-0 flex-col">
@@ -396,6 +455,11 @@ export default function WorkspaceShell() {
 
           {/* Right: New Chat */}
           <div className="flex items-center gap-2">
+            {hydrationError ? (
+              <p className="hidden max-w-56 truncate text-xs text-muted-foreground sm:block">
+                Started fresh: {hydrationError}
+              </p>
+            ) : null}
             <Button
               size="sm"
               variant="default"
@@ -632,6 +696,8 @@ function MinimalWindowHeader({
   onRequestClose: (windowId: string) => void;
 }) {
   const [isHovered, setIsHovered] = useState(false);
+  const [isRepoDialogOpen, setIsRepoDialogOpen] = useState(false);
+  const [repoInputValue, setRepoInputValue] = useState(window.cwd ?? window.repoId);
   const dragHandleRef = useRef<HTMLDivElement>(null);
 
   const handlePointerDown = (event: PointerEvent<HTMLElement>) => {
@@ -647,71 +713,134 @@ function MinimalWindowHeader({
     onStartPointerDrag(event, workspaceId, window.id);
   };
 
+  function openRepoDialog() {
+    setRepoInputValue(window.cwd ?? window.repoId);
+    setIsRepoDialogOpen(true);
+  }
+
+  function submitRepoPath() {
+    const trimmed = repoInputValue.trim();
+
+    if (trimmed) {
+      workspaceCommands.setWindowRepo(window.id, trimmed);
+    }
+
+    setIsRepoDialogOpen(false);
+  }
+
   return (
-    <div
-      ref={dragHandleRef}
-      className="shrink-0 flex cursor-grab items-center justify-between border-b border-border px-3 py-1.5 active:cursor-grabbing"
-      onPointerDown={handlePointerDown}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <div className="flex min-w-0 items-center gap-2 flex-1 overflow-hidden">
-        <Icon className="size-3.5 text-primary shrink-0" />
-        <div className="min-w-0 flex flex-col flex-1 overflow-hidden">
-          <EditableWindowTitle windowId={window.id} title={window.title} />
-          <div
-            className={cn(
-              "overflow-hidden transition-all duration-200 ease-out",
-              isHovered ? "max-h-4 opacity-100" : "max-h-0 opacity-0",
-            )}
-          >
-            <p className="truncate text-[10px] text-muted-foreground leading-tight">
-              {window.repoId}
-            </p>
+    <>
+      <div
+        ref={dragHandleRef}
+        className="shrink-0 flex cursor-grab items-center justify-between border-b border-border px-3 py-1.5 active:cursor-grabbing"
+        onPointerDown={handlePointerDown}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <div className="flex min-w-0 items-center gap-2 flex-1 overflow-hidden">
+          <Icon className="size-3.5 text-primary shrink-0" />
+          <div className="min-w-0 flex flex-col flex-1 overflow-hidden">
+            <EditableWindowTitle windowId={window.id} title={window.title} />
+            <div
+              className={cn(
+                "overflow-hidden transition-all duration-200 ease-out",
+                isHovered ? "max-h-4 opacity-100" : "max-h-0 opacity-0",
+              )}
+            >
+              <button
+                className="block w-full truncate text-left text-[10px] leading-tight text-muted-foreground transition-colors hover:text-foreground"
+                data-no-drag
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openRepoDialog();
+                }}
+              >
+                {window.cwd ?? window.repoId}
+              </button>
+            </div>
           </div>
+        </div>
+
+        <div className="flex items-center gap-1 text-muted-foreground shrink-0 ml-2">
+          <button
+            data-no-drag
+            className="rounded px-1.5 py-1 text-[10px] uppercase tracking-[0.12em] transition-colors hover:bg-muted hover:text-foreground"
+            onClick={(event) => {
+              event.stopPropagation();
+              openRepoDialog();
+            }}
+            title="Set repo folder"
+          >
+            cwd
+          </button>
+          {window.isFullscreen ? (
+            <button
+              data-no-drag
+              className="p-1 rounded hover:bg-muted hover:text-foreground transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                workspaceCommands.toggleWindowFullscreen(workspaceId, window.id);
+              }}
+              title="Minimize"
+            >
+              <Minimize2 className="size-3.5" />
+            </button>
+          ) : (
+            <button
+              data-no-drag
+              className="p-1 rounded hover:bg-muted hover:text-foreground transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                workspaceCommands.toggleWindowFullscreen(workspaceId, window.id);
+              }}
+              title="Expand"
+            >
+              <Expand className="size-3.5" />
+            </button>
+          )}
+          <button
+            data-no-drag
+            className="p-1 rounded hover:bg-muted hover:text-destructive transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRequestClose(window.id);
+            }}
+            title="Close"
+          >
+            <X className="size-3.5" />
+          </button>
         </div>
       </div>
 
-      {/* Window Controls */}
-      <div className="flex items-center gap-1 text-muted-foreground shrink-0 ml-2">
-        {window.isFullscreen ? (
-          <button
-            data-no-drag
-            className="p-1 rounded hover:bg-muted hover:text-foreground transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
-              workspaceCommands.toggleWindowFullscreen(workspaceId, window.id);
+      <Dialog open={isRepoDialogOpen} onOpenChange={setIsRepoDialogOpen}>
+        <DialogContent className="max-w-xl" onPointerDown={(event) => event.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Set Repo Folder</DialogTitle>
+            <DialogDescription>
+              Enter an absolute folder path. Paths like /Documents/MoonLite/hyprcode resolve from
+              your user folder on Windows.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={repoInputValue}
+            onChange={(event) => setRepoInputValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                submitRepoPath();
+              }
             }}
-            title="Minimize"
-          >
-            <Minimize2 className="size-3.5" />
-          </button>
-        ) : (
-          <button
-            data-no-drag
-            className="p-1 rounded hover:bg-muted hover:text-foreground transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
-              workspaceCommands.toggleWindowFullscreen(workspaceId, window.id);
-            }}
-            title="Expand"
-          >
-            <Expand className="size-3.5" />
-          </button>
-        )}
-        <button
-          data-no-drag
-          className="p-1 rounded hover:bg-muted hover:text-destructive transition-colors"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRequestClose(window.id);
-          }}
-          title="Close"
-        >
-          <X className="size-3.5" />
-        </button>
-      </div>
-    </div>
+            placeholder="/Documents/MoonLite/hyprcode"
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRepoDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submitRepoPath}>Use Folder</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

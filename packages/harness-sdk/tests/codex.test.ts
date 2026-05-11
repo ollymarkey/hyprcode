@@ -51,6 +51,30 @@ describe("codex adapter", () => {
     });
   });
 
+  test("maps completed agent messages to assistant messages", () => {
+    const event = {
+      method: "item/completed",
+      params: {
+        threadId: "thread-1",
+        turnId: "turn-1",
+        item: {
+          type: "agentMessage",
+          id: "item-1",
+          text: "hello",
+          phase: null,
+          memoryCitation: null,
+        },
+      },
+    } as CodexStreamTurnEvent;
+
+    expect(mapCodexNotificationToHarnessEvent(event)).toEqual({
+      type: "message",
+      role: "assistant",
+      content: "hello",
+    });
+  });
+
+
   test("maps command items to tool-call events", () => {
     const event = {
       method: "item/started",

@@ -1,5 +1,9 @@
-import { beforeEach, describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { chatCommands, chatStore } from "./store";
+
+vi.mock("#/features/workspaces/session-persistence", () => ({
+  scheduleWorkspaceSessionPersist: vi.fn(),
+}));
 
 describe("chat store commands", () => {
   beforeEach(() => {
@@ -42,5 +46,17 @@ describe("chat store commands", () => {
     chatCommands.removeWindow("window-1");
 
     expect(chatStore.state["window-1"]).toBeUndefined();
+  });
+
+  test("stores per-chat harness and reasoning settings", () => {
+    chatCommands.ensureWindow("window-1", "Planning Copilot", "hyprcode/frontend");
+
+    chatCommands.setHarness("window-1", "codex");
+    chatCommands.setReasoningEffort("window-1", "high");
+
+    expect(chatStore.state["window-1"]?.settings).toMatchObject({
+      harness: "codex",
+      reasoningEffort: "high",
+    });
   });
 });

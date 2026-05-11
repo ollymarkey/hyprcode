@@ -1,10 +1,32 @@
-import { beforeEach, describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import { chatCommands, chatStore } from "#/features/chat/store";
 import { getTilePreset } from "./layout";
-import { createInitialWorkspaceState, workspaceCommands, workspaceStore } from "./store";
+import {
+  createInitialWorkspaceState,
+  hydrateWorkspaceSession,
+  workspaceCommands,
+  workspaceStore,
+} from "./store";
+
+vi.mock("./session-persistence", () => ({
+  configureWorkspaceSessionPersistence: vi.fn(),
+  scheduleWorkspaceSessionPersist: vi.fn(),
+}));
 
 describe("workspace store commands", () => {
   beforeEach(() => {
+    chatCommands.reset();
     workspaceStore.setState(() => createInitialWorkspaceState());
+  });
+
+  test("starts with a single fallback chat window", () => {
+    const state = workspaceStore.state;
+    const workspace = state.workspaces[state.activeWorkspaceId];
+
+    expect(state.workspaceOrder).toHaveLength(1);
+    expect(workspace.windowIds).toHaveLength(1);
+    expect(state.windows[workspace.windowIds[0]]?.type).toBe("chat");
+    expect(getTilePreset(state.windows[workspace.windowIds[0]].tile)).toBe("full");
   });
 
   test("spawns windows into the active workspace up to four tiles", () => {
@@ -18,10 +40,12 @@ describe("workspace store commands", () => {
     const spawnedWindow = nextState.windows[nextWorkspace.focusedWindowId ?? ""];
 
     expect(nextWorkspace.windowIds).toHaveLength(workspace.windowIds.length + 1);
-    expect(getTilePreset(spawnedWindow.tile)).toBe("bottom-right");
+    expect(getTilePreset(spawnedWindow.tile)).toBe("right-half");
   });
 
   test("moves windows into the closest valid layout when a target tile is occupied", () => {
+    workspaceCommands.spawnWindow("chat", "docs-site");
+
     const state = workspaceStore.state;
     const workspace = state.workspaces[state.activeWorkspaceId];
     const [firstWindowId, secondWindowId] = workspace.windowIds;
@@ -54,6 +78,9 @@ describe("workspace store commands", () => {
   });
 
   test("rearranges other windows to satisfy a new target tile", () => {
+    workspaceCommands.spawnWindow("chat", "docs-site");
+    workspaceCommands.spawnWindow("chat", "api-site");
+
     const state = workspaceStore.state;
     const workspace = state.workspaces[state.activeWorkspaceId];
     const [firstWindowId, secondWindowId, thirdWindowId] = workspace.windowIds;
@@ -77,5 +104,45 @@ describe("workspace store commands", () => {
 
     expect(workspace.windowIds).toHaveLength(1);
     expect(nextState.windows[workspace.windowIds[0]]?.type).toBe("chat");
+  });
+
+  test("hydrates from a persisted workspace session snapshot", () => {
+    hydrateWorkspaceSession({
+      version: 1,
+      workspaceState: {
+        activeWorkspaceId: "workspace-restored",
+        workspaceOrder: ["workspace-restored"],
+        workspaces: {
+          "workspace-restored": {
+            id: "workspace-restored",
+            name: "Restored",
+            windowIds: ["window-restored"],
+            focusedWindowId: "window-restored",
+          },
+        },
+        windows: {
+          "window-restored": {
+            id: "window-restored",
+            title: "Restored Chat",
+            type: "chat",
+            repoId: "repo/restored",
+            tile: { x: 0, y: 0, w: 2, h: 2 },
+            isFullscreen: false,
+          },
+        },
+      },
+      chatSettingsByWindowId: {
+        "window-restored": {
+          harness: "codex",
+          reasoningEffort: "high",
+        },
+      },
+    });
+
+    expect(workspaceStore.state.activeWorkspaceId).toBe("workspace-restored");
+    expect(chatStore.state["window-restored"]?.settings).toMatchObject({
+      harness: "codex",
+      reasoningEffort: "high",
+    });
   });
 });

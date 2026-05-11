@@ -23,6 +23,7 @@ export type WorkspaceWindow = {
   title: string;
   type: WindowType;
   repoId: string;
+  cwd?: string;
   tile: TileRect;
   isFullscreen: boolean;
   previousTile?: TileRect;

@@ -32,6 +32,14 @@ export const mapCodexNotificationToHarnessEvent = (
   if (event.method === "item/started" || event.method === "item/completed") {
     const item = event.params.item;
 
+    if (event.method === "item/completed" && item.type === "agentMessage") {
+      return {
+        type: "message",
+        role: "assistant",
+        content: item.text,
+      };
+    }
+
     if (item.type === "mcpToolCall") {
       return {
         type: "tool-call",
@@ -182,6 +190,7 @@ async function* runCodexStream(
   options: CodexAdapterOptions,
 ): AsyncIterable<HarnessStreamEvent> {
   const threadId = await getThreadId(client, request, options);
+  let didReceiveAgentMessageDelta = false;
 
   yield {
     type: "raw",
@@ -196,7 +205,20 @@ async function* runCodexStream(
     prompt: request.prompt,
     cwd: request.cwd ?? options.cwd,
     model: request.model,
+    effort: request.reasoningEffort,
   })) {
+    if (event.method === "item/agentMessage/delta") {
+      didReceiveAgentMessageDelta = true;
+    }
+
+    if (
+      didReceiveAgentMessageDelta &&
+      event.method === "item/completed" &&
+      event.params.item.type === "agentMessage"
+    ) {
+      continue;
+    }
+
     yield mapCodexNotificationToHarnessEvent(event);
   }
 }
