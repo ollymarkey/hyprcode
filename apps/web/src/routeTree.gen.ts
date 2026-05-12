@@ -10,33 +10,102 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiAgentsSessionsRouteImport } from './routes/api/agents/sessions'
+import { Route as ApiAgentsSessionsIdPromptRouteImport } from './routes/api/agents/sessions/$id/prompt'
+import { Route as ApiAgentsSessionsIdEventsRouteImport } from './routes/api/agents/sessions/$id/events'
+import { Route as ApiAgentsSessionsIdAbortRouteImport } from './routes/api/agents/sessions/$id/abort'
+import { Route as ApiAgentsSessionsIdApprovalsApprovalIdRouteImport } from './routes/api/agents/sessions/$id/approvals/$approvalId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentsSessionsRoute = ApiAgentsSessionsRouteImport.update({
+  id: '/api/agents/sessions',
+  path: '/api/agents/sessions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgentsSessionsIdPromptRoute =
+  ApiAgentsSessionsIdPromptRouteImport.update({
+    id: '/$id/prompt',
+    path: '/$id/prompt',
+    getParentRoute: () => ApiAgentsSessionsRoute,
+  } as any)
+const ApiAgentsSessionsIdEventsRoute =
+  ApiAgentsSessionsIdEventsRouteImport.update({
+    id: '/$id/events',
+    path: '/$id/events',
+    getParentRoute: () => ApiAgentsSessionsRoute,
+  } as any)
+const ApiAgentsSessionsIdAbortRoute =
+  ApiAgentsSessionsIdAbortRouteImport.update({
+    id: '/$id/abort',
+    path: '/$id/abort',
+    getParentRoute: () => ApiAgentsSessionsRoute,
+  } as any)
+const ApiAgentsSessionsIdApprovalsApprovalIdRoute =
+  ApiAgentsSessionsIdApprovalsApprovalIdRouteImport.update({
+    id: '/$id/approvals/$approvalId',
+    path: '/$id/approvals/$approvalId',
+    getParentRoute: () => ApiAgentsSessionsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/agents/sessions': typeof ApiAgentsSessionsRouteWithChildren
+  '/api/agents/sessions/$id/abort': typeof ApiAgentsSessionsIdAbortRoute
+  '/api/agents/sessions/$id/events': typeof ApiAgentsSessionsIdEventsRoute
+  '/api/agents/sessions/$id/prompt': typeof ApiAgentsSessionsIdPromptRoute
+  '/api/agents/sessions/$id/approvals/$approvalId': typeof ApiAgentsSessionsIdApprovalsApprovalIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/agents/sessions': typeof ApiAgentsSessionsRouteWithChildren
+  '/api/agents/sessions/$id/abort': typeof ApiAgentsSessionsIdAbortRoute
+  '/api/agents/sessions/$id/events': typeof ApiAgentsSessionsIdEventsRoute
+  '/api/agents/sessions/$id/prompt': typeof ApiAgentsSessionsIdPromptRoute
+  '/api/agents/sessions/$id/approvals/$approvalId': typeof ApiAgentsSessionsIdApprovalsApprovalIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/agents/sessions': typeof ApiAgentsSessionsRouteWithChildren
+  '/api/agents/sessions/$id/abort': typeof ApiAgentsSessionsIdAbortRoute
+  '/api/agents/sessions/$id/events': typeof ApiAgentsSessionsIdEventsRoute
+  '/api/agents/sessions/$id/prompt': typeof ApiAgentsSessionsIdPromptRoute
+  '/api/agents/sessions/$id/approvals/$approvalId': typeof ApiAgentsSessionsIdApprovalsApprovalIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/api/agents/sessions'
+    | '/api/agents/sessions/$id/abort'
+    | '/api/agents/sessions/$id/events'
+    | '/api/agents/sessions/$id/prompt'
+    | '/api/agents/sessions/$id/approvals/$approvalId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/api/agents/sessions'
+    | '/api/agents/sessions/$id/abort'
+    | '/api/agents/sessions/$id/events'
+    | '/api/agents/sessions/$id/prompt'
+    | '/api/agents/sessions/$id/approvals/$approvalId'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/agents/sessions'
+    | '/api/agents/sessions/$id/abort'
+    | '/api/agents/sessions/$id/events'
+    | '/api/agents/sessions/$id/prompt'
+    | '/api/agents/sessions/$id/approvals/$approvalId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiAgentsSessionsRoute: typeof ApiAgentsSessionsRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +117,65 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agents/sessions': {
+      id: '/api/agents/sessions'
+      path: '/api/agents/sessions'
+      fullPath: '/api/agents/sessions'
+      preLoaderRoute: typeof ApiAgentsSessionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agents/sessions/$id/prompt': {
+      id: '/api/agents/sessions/$id/prompt'
+      path: '/$id/prompt'
+      fullPath: '/api/agents/sessions/$id/prompt'
+      preLoaderRoute: typeof ApiAgentsSessionsIdPromptRouteImport
+      parentRoute: typeof ApiAgentsSessionsRoute
+    }
+    '/api/agents/sessions/$id/events': {
+      id: '/api/agents/sessions/$id/events'
+      path: '/$id/events'
+      fullPath: '/api/agents/sessions/$id/events'
+      preLoaderRoute: typeof ApiAgentsSessionsIdEventsRouteImport
+      parentRoute: typeof ApiAgentsSessionsRoute
+    }
+    '/api/agents/sessions/$id/abort': {
+      id: '/api/agents/sessions/$id/abort'
+      path: '/$id/abort'
+      fullPath: '/api/agents/sessions/$id/abort'
+      preLoaderRoute: typeof ApiAgentsSessionsIdAbortRouteImport
+      parentRoute: typeof ApiAgentsSessionsRoute
+    }
+    '/api/agents/sessions/$id/approvals/$approvalId': {
+      id: '/api/agents/sessions/$id/approvals/$approvalId'
+      path: '/$id/approvals/$approvalId'
+      fullPath: '/api/agents/sessions/$id/approvals/$approvalId'
+      preLoaderRoute: typeof ApiAgentsSessionsIdApprovalsApprovalIdRouteImport
+      parentRoute: typeof ApiAgentsSessionsRoute
+    }
   }
 }
 
+interface ApiAgentsSessionsRouteChildren {
+  ApiAgentsSessionsIdAbortRoute: typeof ApiAgentsSessionsIdAbortRoute
+  ApiAgentsSessionsIdEventsRoute: typeof ApiAgentsSessionsIdEventsRoute
+  ApiAgentsSessionsIdPromptRoute: typeof ApiAgentsSessionsIdPromptRoute
+  ApiAgentsSessionsIdApprovalsApprovalIdRoute: typeof ApiAgentsSessionsIdApprovalsApprovalIdRoute
+}
+
+const ApiAgentsSessionsRouteChildren: ApiAgentsSessionsRouteChildren = {
+  ApiAgentsSessionsIdAbortRoute: ApiAgentsSessionsIdAbortRoute,
+  ApiAgentsSessionsIdEventsRoute: ApiAgentsSessionsIdEventsRoute,
+  ApiAgentsSessionsIdPromptRoute: ApiAgentsSessionsIdPromptRoute,
+  ApiAgentsSessionsIdApprovalsApprovalIdRoute:
+    ApiAgentsSessionsIdApprovalsApprovalIdRoute,
+}
+
+const ApiAgentsSessionsRouteWithChildren =
+  ApiAgentsSessionsRoute._addFileChildren(ApiAgentsSessionsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiAgentsSessionsRoute: ApiAgentsSessionsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

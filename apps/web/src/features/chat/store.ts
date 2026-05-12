@@ -108,6 +108,59 @@ export const chatCommands = {
     return true;
   },
 
+  createPendingAssistantMessage(windowId: string, title: string, repoId: string) {
+    const messageId = createMessageId();
+
+    chatStore.setState((state) => {
+      const currentWindow = state[windowId] ?? createChatWindowState(windowId, title, repoId);
+
+      return {
+        ...state,
+        [windowId]: {
+          ...currentWindow,
+          title,
+          repoId,
+          messages: [
+            ...currentWindow.messages,
+            {
+              id: messageId,
+              role: "assistant",
+              content: "",
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      };
+    });
+
+    return messageId;
+  },
+
+  appendAssistantDelta(windowId: string, messageId: string, delta: string) {
+    chatStore.setState((state) => {
+      const currentWindow = state[windowId];
+
+      if (!currentWindow) {
+        return state;
+      }
+
+      return {
+        ...state,
+        [windowId]: {
+          ...currentWindow,
+          messages: currentWindow.messages.map((message) =>
+            message.id === messageId && message.role === "assistant"
+              ? {
+                  ...message,
+                  content: `${message.content}${delta}`,
+                }
+              : message,
+          ),
+        },
+      };
+    });
+  },
+
   removeWindow(windowId: string) {
     chatStore.setState((state) => {
       if (!state[windowId]) {

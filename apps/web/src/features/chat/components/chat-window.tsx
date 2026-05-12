@@ -16,6 +16,8 @@ import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
 import { useStore } from "@tanstack/react-store";
 import { ArrowUp, MessageSquareDashed } from "lucide-react";
 import { Button } from "#/components/ui/button";
+import { AgentActivity } from "#/features/agents/components/agent-activity";
+import { agentCommands, agentStore } from "#/features/agents/store";
 import { cn } from "#/lib/utils";
 import { measureChatComposerHeight } from "../lib/pretext-measure";
 import { chatCommands, chatStore, createChatWindowState } from "../store";
@@ -35,6 +37,7 @@ export function ChatWindow({ windowId, title, repoId }: ChatWindowProps) {
     chatStore,
     (state) => state[windowId] ?? createChatWindowState(windowId, title, repoId),
   );
+  const agentWindow = useStore(agentStore, (state) => state.windows[windowId]);
   const composerRef = useRef<HTMLDivElement | null>(null);
   const [composerWidth, setComposerWidth] = useState(0);
 
@@ -142,11 +145,12 @@ export function ChatWindow({ windowId, title, repoId }: ChatWindowProps) {
               />
               <SubmitOnEnterPlugin
                 onSubmit={(editor, editorState) => {
+                  const plainText = readPlainText(editorState);
                   const didSend = chatCommands.sendMessage(
                     windowId,
                     title,
                     repoId,
-                    readPlainText(editorState),
+                    plainText,
                     JSON.stringify(editorState.toJSON()),
                   );
 
@@ -158,6 +162,7 @@ export function ChatWindow({ windowId, title, repoId }: ChatWindowProps) {
                     $getRoot().clear();
                   });
                   chatCommands.setDraft(windowId, title, repoId, "", undefined);
+                  void agentCommands.sendPrompt(windowId, title, repoId, plainText);
                 }}
               />
             </div>
@@ -168,11 +173,12 @@ export function ChatWindow({ windowId, title, repoId }: ChatWindowProps) {
               </p>
               <SendButton
                 onSend={(editor, editorState) => {
+                  const plainText = readPlainText(editorState);
                   const didSend = chatCommands.sendMessage(
                     windowId,
                     title,
                     repoId,
-                    readPlainText(editorState),
+                    plainText,
                     JSON.stringify(editorState.toJSON()),
                   );
 
@@ -184,12 +190,14 @@ export function ChatWindow({ windowId, title, repoId }: ChatWindowProps) {
                     $getRoot().clear();
                   });
                   chatCommands.setDraft(windowId, title, repoId, "", undefined);
+                  void agentCommands.sendPrompt(windowId, title, repoId, plainText);
                 }}
               />
             </div>
           </div>
         </LexicalComposer>
       </div>
+      <AgentActivity windowId={windowId} agentWindow={agentWindow} />
     </div>
   );
 }

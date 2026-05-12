@@ -58,6 +58,10 @@ export type ShortcutAction =
   | "window.spawn.editor"
   | "window.close"
   | "window.fullscreen"
+  | "agent.approve"
+  | "agent.deny"
+  | "agent.abort"
+  | "agent.preview"
   | "command.open";
 
 export type ShortcutBinding = {

@@ -11,6 +11,7 @@ import { useStore } from "@tanstack/react-store";
 import { Expand, MessageSquare, Minimize2, Monitor, Plus, Search, Terminal, X } from "lucide-react";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
+import { agentCommands, agentStore } from "#/features/agents/store";
 import { cn } from "#/lib/utils";
 import { CommandPalette } from "./command-palette";
 import { WindowBody } from "./window-body";
@@ -153,12 +154,42 @@ export default function WorkspaceShell() {
           workspaceCommands.toggleWindowFullscreen(activeWorkspace.id, focusedWindow.id);
         }
         return;
+      case "agent.approve":
+        if (focusedWindow) {
+          void resolveFocusedApproval(focusedWindow.id, "approved");
+        }
+        return;
+      case "agent.deny":
+        if (focusedWindow) {
+          void resolveFocusedApproval(focusedWindow.id, "denied");
+        }
+        return;
+      case "agent.abort":
+        if (focusedWindow) {
+          void agentCommands.abortWindow(focusedWindow.id);
+        }
+        return;
+      case "agent.preview":
+        setIsCommandPaletteOpen(true);
+        return;
       case "command.open":
         setIsCommandPaletteOpen(true);
         return;
       default:
         return;
     }
+  }
+
+  function resolveFocusedApproval(windowId: string, decision: "approved" | "denied") {
+    const pendingApproval = Object.values(agentStore.state.windows[windowId]?.approvals ?? {}).find(
+      (approval) => approval.status === "pending",
+    );
+
+    if (!pendingApproval) {
+      return;
+    }
+
+    return agentCommands.resolveApproval(windowId, pendingApproval.id, decision);
   }
 
   // Track last swap target to prevent rapid flickering
@@ -476,6 +507,24 @@ export default function WorkspaceShell() {
         }}
         onToggleFullscreen={(windowId) => {
           workspaceCommands.toggleWindowFullscreen(activeWorkspace.id, windowId);
+          setIsCommandPaletteOpen(false);
+        }}
+        onApproveAgentRequest={() => {
+          if (focusedWindow) {
+            void resolveFocusedApproval(focusedWindow.id, "approved");
+          }
+          setIsCommandPaletteOpen(false);
+        }}
+        onDenyAgentRequest={() => {
+          if (focusedWindow) {
+            void resolveFocusedApproval(focusedWindow.id, "denied");
+          }
+          setIsCommandPaletteOpen(false);
+        }}
+        onAbortAgentRun={() => {
+          if (focusedWindow) {
+            void agentCommands.abortWindow(focusedWindow.id);
+          }
           setIsCommandPaletteOpen(false);
         }}
       />

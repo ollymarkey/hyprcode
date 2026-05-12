@@ -37,6 +37,26 @@ export const workspaceShortcutBindings: ShortcutBinding[] = [
     keys: { key: "Backspace" },
   },
   {
+    action: "agent.approve",
+    description: "Approve focused agent request",
+    keys: { key: "Enter", metaKey: true },
+  },
+  {
+    action: "agent.deny",
+    description: "Deny focused agent request",
+    keys: { key: "Escape", metaKey: true },
+  },
+  {
+    action: "agent.abort",
+    description: "Abort active Pi run",
+    keys: { key: ".", metaKey: true },
+  },
+  {
+    action: "agent.preview",
+    description: "Open current agent activity",
+    keys: { key: "a", metaKey: true },
+  },
+  {
     action: "command.open",
     description: "Open command palette",
     keys: { key: "p", metaKey: true },
